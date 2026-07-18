@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>织光 · Lumilo 引擎</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <style>
+    :root {
+      --bg: #1a1a2e;
+      --panel-bg: rgba(20, 20, 40, 0.95);
+      --accent: #e94560;
+      --text-color: #eee;
+      --speaker-color: #e94560;
+      --border-color: rgba(255,255,255,0.1);
+      --border-radius: 20px;
+      --dialog-bg: rgba(20, 20, 40, 0.9);
+      --btn-bg: rgba(255,255,255,0.1);
+      --btn-hover-bg: #e94560;
+      --font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+      --choice-radius: 20px;
+      --dialog-padding: 20px;
+      --scene-bg: #2a2a3c;
+      --menu-btn-bg: rgba(0,0,0,0.5);
+      --vignette-opacity: 0;
+      --glow-opacity: 0;
+      --sun-opacity: 0;
+      --cinematic-opacity: 0;
+      --ambient-opacity: 0.15;
+    }
+    /* 9 套模板 */
+    .theme-dark { --bg:#0d0d0d; --panel-bg:rgba(20,20,20,0.95); --accent:#f0c040; --text-color:#ccc; --speaker-color:#f0c040; --border-color:#333; --border-radius:0; --dialog-bg:rgba(10,10,10,0.95); --btn-bg:#222; --btn-hover-bg:#f0c040; --choice-radius:0; --dialog-padding:25px; --scene-bg:#111; --menu-btn-bg:#222; }
+    .theme-comic { --bg:#fafafa; --panel-bg:rgba(255,255,255,0.9); --accent:#ff6b6b; --text-color:#222; --speaker-color:#ff6b6b; --border-color:#ff6b6b; --border-radius:30px; --dialog-bg:white; --btn-bg:#fff; --btn-hover-bg:#ff6b6b; --choice-radius:30px; --dialog-padding:25px; --scene-bg:#e0e0e0; --menu-btn-bg:rgba(255,255,255,0.7); }
+    .theme-comic .dialog-panel { border:3px solid #ff6b6b; box-shadow:5px 5px 0 rgba(0,0,0,0.1); }
+    .theme-comic .speaker { font-size:1.2em; text-decoration:underline wavy #ff6b6b; }
+    .theme-japanese { --bg:#d9c8a9; --panel-bg:rgba(230,220,200,0.95); --accent:#8b4513; --text-color:#3e2e1f; --speaker-color:#8b4513; --border-color:#8b4513; --border-radius:0; --dialog-bg:rgba(240,230,210,0.95); --btn-bg:rgba(200,180,140,0.5); --btn-hover-bg:#8b4513; --choice-radius:0; --dialog-padding:30px 25px; --scene-bg:#c4b494; --menu-btn-bg:rgba(180,160,120,0.7); }
+    .theme-japanese .dialog-panel { border-top:3px double #8b4513; background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><path d="M0 0 L100 0 L100 2 L0 2 Z" fill="%23d2b48c" opacity="0.3"/></svg>'); }
+    .theme-japanese .speaker { font-family:'KaiTi',serif; font-size:1.2em; }
+    .theme-minimal { --bg:#fff; --panel-bg:rgba(255,255,255,0.95); --accent:#000; --text-color:#333; --speaker-color:#000; --border-color:#ddd; --border-radius:8px; --dialog-bg:white; --btn-bg:#f5f5f5; --btn-hover-bg:#000; --choice-radius:4px; --dialog-padding:24px; --scene-bg:#f0f0f0; --menu-btn-bg:rgba(0,0,0,0.05); }
+    .theme-minimal .dialog-panel { border-top:1px solid #ddd; box-shadow:none; }
+    .theme-minimal .speaker { text-transform:uppercase; letter-spacing:1px; font-size:14px; }
+    .theme-cyberpunk { --bg:#0a0a0f; --panel-bg:rgba(10,10,20,0.9); --accent:#0ff; --text-color:#c0f0ff; --speaker-color:#f0f; --border-color:#0ff; --border-radius:0; --dialog-bg:rgba(5,5,15,0.95); --btn-bg:rgba(0,255,255,0.1); --btn-hover-bg:#f0f; --choice-radius:0; --dialog-padding:25px; --scene-bg:#050510; --menu-btn-bg:rgba(0,255,255,0.15); }
+    .theme-cyberpunk .dialog-panel { border-top:2px solid #0ff; box-shadow:0 0 15px rgba(0,255,255,0.2); }
+    .theme-cyberpunk .speaker { text-shadow:0 0 8px #f0f; }
+    .theme-cyberpunk .choice-btn { border:1px solid #0ff; text-transform:uppercase; letter-spacing:1px; }
+    .theme-watercolor { --bg:#fef9f0; --panel-bg:rgba(255,248,240,0.9); --accent:#d65c5c; --text-color:#5e4a3c; --speaker-color:#c45161; --border-color:#e0c8b0; --border-radius:40px 10px 40px 10px; --dialog-bg:rgba(255,250,245,0.95); --btn-bg:rgba(200,160,140,0.2); --btn-hover-bg:#d65c5c; --choice-radius:30px 5px 30px 5px; --dialog-padding:24px; --scene-bg:#f2e4d0; --menu-btn-bg:rgba(180,140,120,0.3); }
+    .theme-watercolor .dialog-panel { border:2px solid #e0c8b0; box-shadow:3px 3px 8px rgba(0,0,0,0.1); }
+    .theme-watercolor .speaker { font-style:italic; font-weight:600; }
+    .theme-pixel { --bg:#202020; --panel-bg:rgba(30,30,30,0.95); --accent:#fc0; --text-color:#fff; --speaker-color:#fc0; --border-color:#555; --border-radius:0; --dialog-bg:#111; --btn-bg:#333; --btn-hover-bg:#fc0; --choice-radius:0; --dialog-padding:16px 20px; --scene-bg:#000; --menu-btn-bg:#333; --font-family:'Press Start 2P','Courier New',monospace; }
+    .theme-pixel .dialog-panel { border:4px solid #555; box-shadow:4px 4px 0 #000; }
+    .theme-pixel .speaker { font-size:12px; text-transform:uppercase; }
+    .theme-pixel .text { font-size:13px; line-height:1.8; }
+    .theme-pixel .choice-btn { border:2px solid #888; font-size:12px; }
+    .theme-glass { --bg:#1e1e2e; --panel-bg:rgba(255,255,255,0.1); --accent:#ff9a9e; --text-color:#fff; --speaker-color:#ff9a9e; --border-color:rgba(255,255,255,0.2); --border-radius:20px; --dialog-bg:rgba(255,255,255,0.08); --btn-bg:rgba(255,255,255,0.15); --btn-hover-bg:rgba(255,255,255,0.3); --choice-radius:20px; --dialog-padding:22px; --scene-bg:#2d2d44; --menu-btn-bg:rgba(255,255,255,0.1); }
+    .theme-glass .dialog-panel { backdrop-filter:blur(20px); border:1px solid rgba(255,255,255,0.2); box-shadow:0 8px 32px rgba(0,0,0,0.2); }
+    .theme-glass .speaker { font-weight:600; text-shadow:0 2px 4px rgba(0,0,0,0.3); }
+
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:#0f0f23; display:flex; justify-content:center; align-items:center; min-height:100vh; font-family:var(--font-family); color:var(--text-color); overflow:hidden; }
+    #game-container { position:relative; width:100%; max-width:800px; height:100vh; background:var(--bg); border-radius:var(--border-radius); overflow:hidden; display:flex; flex-direction:column; box-shadow:0 20px 40px rgba(0,0,0,0.5); }
+    .scene { flex:1; position:relative; background:var(--scene-bg); background-size:cover; background-position:center; cursor:pointer; overflow:hidden; }
+    .ambient-light { position:absolute; top:0; left:0; right:0; bottom:0; pointer-events:none; z-index:4; background:radial-gradient(circle at 50% 50%, rgba(255,255,220,0.3) 0%, transparent 70%); opacity:var(--ambient-opacity); transition:opacity 0.5s; }
+    .ambient-light.active { animation: drift 12s ease-in-out infinite alternate; }
+    @keyframes drift { 0% { transform:translate(-5%, -5%) scale(1); } 100% { transform:translate(5%, 5%) scale(1.1); } }
+    .lighting-layer { position:absolute; top:0; left:0; right:0; bottom:0; pointer-events:none; z-index:5; }
+    .lighting-vignette { position:absolute; top:0; left:0; right:0; bottom:0; background:radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.7) 100%); opacity:var(--vignette-opacity); transition:opacity 0.5s; }
+    .lighting-glow { position:absolute; top:0; left:0; right:0; bottom:0; background:radial-gradient(circle at 50% 50%, rgba(255,255,200,0.4) 0%, transparent 70%); opacity:var(--glow-opacity); transition:opacity 0.5s; }
+    .lighting-sun { position:absolute; top:-20%; left:-20%; width:140%; height:140%; background:radial-gradient(circle at 70% 30%, rgba(255,200,100,0.5) 0%, transparent 50%); opacity:var(--sun-opacity); transition:opacity 0.5s; }
+    .lighting-cinematic { position:absolute; top:0; left:0; right:0; bottom:0; background:linear-gradient(0deg, transparent 60%, rgba(0,0,0,0.3) 80%, transparent 90%); opacity:var(--cinematic-opacity); transition:opacity 0.5s; }
+    @keyframes fadeInSprite { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+    .sprite { position:absolute; bottom:0; max-height:80%; filter:drop-shadow(0 0 10px rgba(0,0,0,0.5)); transition:all 0.5s ease; pointer-events:none; z-index:6; }
+    .sprite.left { left:20px; } .sprite.center { left:50%; transform:translateX(-50%); } .sprite.right { right:20px; }
+    .dialog-panel { background:var(--dialog-bg); backdrop-filter:blur(10px); border-top:2px solid var(--border-color); padding:var(--dialog-padding); min-height:140px; display:flex; flex-direction:column; z-index:10; }
+    .dialog-panel.animated { animation: dialogRise 0.3s ease; }
+    @keyframes dialogRise { from { transform:translateY(10px); opacity:0.8; } to { transform:translateY(0); opacity:1; } }
+    .speaker { font-weight:bold; margin-bottom:5px; color:var(--speaker-color); }
+    .text { font-size:16px; line-height:1.6; flex:1; margin-bottom:10px; min-height:1.6em; position:relative; }
+    .text-cursor { display:inline-block; width:2px; height:1.2em; background:var(--accent); margin-left:2px; vertical-align:text-bottom; animation:blink 0.8s infinite; }
+    @keyframes blink { 0%,50% { opacity:1; } 51%,100% { opacity:0; } }
+    .choices { display:flex; flex-wrap:wrap; gap:8px; }
+    .choice-btn { background:var(--btn-bg); border:1px solid var(--border-color); color:var(--text-color); padding:8px 16px; border-radius:var(--choice-radius); cursor:pointer; transition:all 0.2s; transform:scale(1); }
+    .choice-btn:hover { background:var(--btn-hover-bg); border-color:var(--btn-hover-bg); }
+    .choice-btn:active { transform:scale(0.95); }
+
+    .mobile-nav { position:fixed; bottom:0; left:0; right:0; background:rgba(0,0,0,0.8); display:flex; justify-content:space-around; align-items:center; padding:8px 0; z-index:100; backdrop-filter:blur(10px); }
+    .nav-btn { background:transparent; border:none; color:#fff; font-size:18px; padding:8px 12px; border-radius:10px; }
+    .nav-btn.active { background:var(--accent); }
+    .overlay { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:25; }
+    .overlay.show { display:block; }
+    .panel { display:none; position:fixed; background:var(--panel-bg); color:var(--text-color); border-radius:16px; z-index:30; box-shadow:0 0 30px rgba(0,0,0,0.8); padding:20px; backdrop-filter:blur(10px); border:1px solid var(--border-color); width:90%; max-width:400px; top:50%; left:50%; transform:translate(-50%,-50%); max-height:80vh; overflow-y:auto; }
+    .panel.show { display:block; }
+    .panel-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; }
+    .panel-title { font-size:18px; font-weight:bold; }
+    .panel-close { background:none; border:none; color:var(--text-color); font-size:20px; cursor:pointer; opacity:0.7; }
+    .panel-close:hover { opacity:1; }
+    .save-slot { display:flex; align-items:center; background:rgba(255,255,255,0.05); padding:8px 12px; margin:6px 0; border-radius:8px; gap:8px; }
+    .save-slot img { width:80px; height:45px; object-fit:cover; border-radius:4px; }
+    .save-slot button { margin-left:auto; padding:4px 12px; border:none; border-radius:12px; cursor:pointer; background:var(--accent); color:white; font-size:12px; }
+    .upload-section { background:rgba(255,255,255,0.05); padding:10px; border-radius:10px; margin-bottom:15px; }
+    .upload-section label { font-size:13px; display:block; margin-bottom:4px; }
+    .upload-section input, .upload-section select, .upload-section button { width:100%; margin:4px 0; padding:6px; border-radius:6px; border:none; background:rgba(255,255,255,0.1); color:var(--text-color); }
+    .upload-section button { background:var(--accent); cursor:pointer; font-weight:bold; color:white; }
+    .delete-btn { background:#444; color:white; border:none; padding:2px 8px; border-radius:10px; font-size:11px; cursor:pointer; }
+    .log-entry, .script-entry { margin-bottom:6px; padding:6px 8px; border-radius:6px; cursor:pointer; transition:background 0.15s; border-bottom:1px solid var(--border-color); display:flex; align-items:center; gap:8px; }
+    .log-entry:hover, .script-entry:hover { background:rgba(255,255,255,0.1); }
+    .log-entry.active, .script-entry.active { background:var(--accent); color:white; }
+  </style>
+</head>
+<body>
+<div id="game-container">
+  <div class="scene" id="scene">
+    <div class="ambient-light" id="ambientLight"></div>
+    <div class="lighting-layer">
+      <div class="lighting-vignette"></div>
+      <div class="lighting-glow"></div>
+      <div class="lighting-sun"></div>
+      <div class="lighting-cinematic"></div>
+    </div>
+  </div>
+  <div class="dialog-panel animated" id="dialogPanel">
+    <div class="speaker" id="speaker"></div>
+    <div class="text" id="text"></div>
+    <div class="choices" id="choices"></div>
+  </div>
+</div>
+
+<div class="mobile-nav">
+  <button class="nav-btn" id="navSave">💾</button>
+  <button class="nav-btn" id="navLog">📜</button>
+  <button class="nav-btn" id="navAuto">⏯️</button>
+  <button class="nav-btn" id="navSkip">⏩</button>
+  <button class="nav-btn" id="navRes">📁</button>
+  <button class="nav-btn" id="navExport">📦</button>
+  <button class="nav-btn" id="navSettings">⚙️</button>
+</div>
+
+<div class="overlay" id="overlay"></div>
+
+<div class="panel" id="savePanel">
+  <div class="panel-header"><span class="panel-title">💾 存档</span><button class="panel-close" data-close="savePanel">✖</button></div>
+  <div id="slotList"></div>
+</div>
+<div class="panel" id="logPanel">
+  <div class="panel-header"><span class="panel-title">📜 日志</span><button class="panel-close" data-close="logPanel">✖</button></div>
+  <div id="logContent"></div>
+</div>
+<div class="panel" id="resPanel">
+  <div class="panel-header"><span class="panel-title">📁 资源</span><button class="panel-close" data-close="resPanel">✖</button></div>
+  <div class="upload-section"><label>背景</label><input type="file" id="bgUpload" accept="image/*"><input type="text" id="bgId" placeholder="ID"><button id="saveBgBtn">保存</button><div id="bgList"></div></div>
+  <div class="upload-section"><label>立绘</label><input type="text" id="charName" placeholder="角色"><input type="text" id="expression" placeholder="表情"><input type="file" id="spriteUpload" accept="image/*"><button id="saveSpriteBtn">保存</button><div id="spriteList"></div></div>
+  <div class="upload-section"><label>音频</label><input type="text" id="audioId" placeholder="ID"><input type="file" id="audioUpload" accept="audio/*"><button id="saveAudioBtn">保存</button><div id="audioList"></div></div>
+</div>
+<div class="panel" id="settingsPanel">
+  <div class="panel-header"><span class="panel-title">⚙️ 设置</span><button class="panel-close" data-close="settingsPanel">✖</button></div>
+  <div style="display:flex; justify-content:space-between; margin:8px 0;"><label>文本速度</label><input type="range" id="speedSetting" min="10" max="100" value="30" style="width:100px;"></div>
+  <div style="display:flex; justify-content:space-between; margin:8px 0;"><label>自动等待</label><input type="range" id="autoDelaySetting" min="1" max="10" value="2" style="width:100px;"></div>
+  <div style="display:flex; justify-content:space-between; margin:8px 0;"><label>BGM音量</label><input type="range" id="bgmVol" min="0" max="1" step="0.1" value="0.7" style="width:100px;"></div>
+  <div style="display:flex; justify-content:space-between; margin:8px 0;"><label>音效音量</label><input type="range" id="sfxVol" min="0" max="1" step="0.1" value="0.8" style="width:100px;"></div>
+  <div style="margin-top:10px;"><label><input type="checkbox" id="skipModeCheck"> 跳过全部</label></div>
+  <div style="margin-top:10px; border-top:1px solid var(--border-color); padding-top:10px;"><h4>视觉</h4>
+    <label><input type="checkbox" id="spriteTransCheck" checked> 立绘过渡</label><br>
+    <label><input type="checkbox" id="bgTransCheck" checked> 背景过渡</label><br>
+    <label><input type="checkbox" id="cursorCheck" checked> 打字光标</label><br>
+    <label><input type="checkbox" id="ambientCheck" checked> 动态光</label><br>
+    <label><input type="checkbox" id="dialogAnimCheck" checked> 对话框动画</label>
+  </div>
+  <button id="resetSettingsBtn" style="width:100%; margin-top:10px; background:var(--accent); color:white; border:none; padding:8px; border-radius:8px;">恢复默认</button>
+</div>
+<div class="panel" id="fxPanel">
+  <div class="panel-header"><span class="panel-title">🎬 滤镜</span><button class="panel-close" data-close="fxPanel">✖</button></div>
+  <select id="filterSelect" style="width:100%; margin-bottom:10px; background:rgba(255,255,255,0.1); color:inherit; border:1px solid var(--border-color); padding:5px;">
+    <option value="none">正常</option><option value="grayscale(100%)">黑白</option><option value="sepia(80%)">复古</option>
+    <option value="blur(2px)">模糊</option><option value="hue-rotate(180deg)">冷蓝</option><option value="hue-rotate(-30deg) saturate(1.5)">暖橙</option>
+  </select>
+  <div><label>暗角</label><input type="range" id="vignetteSlider" min="0" max="1" step="0.1" value="0" style="width:100%;"></div>
+  <div><label>柔光</label><input type="range" id="glowSlider" min="0" max="1" step="0.1" value="0" style="width:100%;"></div>
+  <div><label>阳光</label><input type="range" id="sunSlider" min="0" max="1" step="0.1" value="0" style="width:100%;"></div>
+  <div><label>电影条</label><input type="range" id="cinematicSlider" min="0" max="1" step="0.1" value="0" style="width:100%;"></div>
+</div>
+<div class="panel" id="scriptPanel">
+  <div class="panel-header"><span class="panel-title">📋 剧本</span><button class="panel-close" data-close="scriptPanel">✖</button></div>
+  <div id="scriptContent"></div>
+</div>
+<div class="panel" id="exportPanel">
+  <div class="panel-header"><span class="panel-title">📦 导出</span><button class="panel-close" data-close="exportPanel">✖</button></div>
+  <input type="file" id="iconUpload" accept="image/png"><label>图标(可选)</label>
+  <div id="iconPreview"></div>
+  <button class="export-btn" data-platform="web" style="margin:5px 0; width:100%;">🌐 Web</button>
+  <button class="export-btn" data-platform="windows" style="margin:5px 0; width:100%;">🖥️ Windows</button>
+  <button class="export-btn" data-platform="android" style="margin:5px 0; width:100%;">📱 Android</button>
+  <div id="exportStatus"></div>
+</div>
+
+<script>
+// IndexedDB 打开数据库
+const DB_NAME = 'galgame_resources';
+let db;
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 2);
+    request.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains('backgrounds')) db.createObjectStore('backgrounds', { keyPath: 'id' });
+      if (!db.objectStoreNames.contains('sprites')) db.createObjectStore('sprites', { keyPath: 'id' });
+      if (!db.objectStoreNames.contains('audios')) db.createObjectStore('audios', { keyPath: 'id' });
+    };
+    request.onsuccess = (e) => { db = e.target.result; resolve(db); };
+    request.onerror = reject;
+  });
+}
+function saveToStore(store, item) {
+  return new Promise((res, rej) => {
+    const tx = db.transaction(store, 'readwrite');
+    tx.objectStore(store).put(item);
+    tx.oncomplete = res; tx.onerror = rej;
+  }).catch(err => console.error('保存失败:', err));
+}
+function getFromStore(store, id) {
+  return new Promise((res, rej) => {
+    const tx = db.transaction(store, 'readonly');
+    const req = tx.objectStore(store).get(id);
+    req.onsuccess = () => res(req.result);
+    req.onerror = rej;
+  }).catch(() => null);
+}
+function getAllFromStore(store) {
+  return new Promise((res, rej) => {
+    const tx = db.transaction(store, 'readonly');
+    const req = tx.objectStore(store).getAll();
+    req.onsuccess = () => res(req.result);
+    req.onerror = rej;
+  }).catch(() => []);
+}
+function deleteFromStore(store, id) {
+  return new Promise((res, rej) => {
+    const tx = db.transaction(store, 'readwrite');
+    tx.objectStore(store).delete(id);
+    tx.oncomplete = res; tx.onerror = rej;
+  }).catch(err => console.error('删除失败:', err));
+}
+
+// UI 面板控制
+const overlay = document.getElementById('overlay');
+let activePanel = null;
+function openPanel(panelId) { if (activePanel) closePanel(activePanel); const p = document.getElementById(panelId); if (p) { p.classList.add('show'); overlay.classList.add('show'); activePanel = panelId; } }
+function closePanel(panelId) { const p = document.getElementById(panelId); if (p) p.classList.remove('show'); overlay.classList.remove('show'); if (activePanel === panelId) activePanel = null; }
+overlay.addEventListener('click', () => { if (activePanel) closePanel(activePanel); });
+document.querySelectorAll('.panel-close').forEach(btn => btn.addEventListener('click', () => closePanel(btn.dataset.close)));
+
+// 刷新资源列表
+async function refreshBGs() { const list = document.getElementById('bgList'); if (!list) return; const bgs = await getAllFromStore('backgrounds'); list.innerHTML = bgs.map(bg => `<div style="display:flex;align-items:center;gap:8px;margin:4px 0;background:#fff1;padding:4px;border-radius:6px;"><img src="${bg.data}" style="width:40px;height:30px;object-fit:cover;border-radius:4px;"><span style="flex:1;font-size:13px;">${bg.id}</span><button class="delete-btn" data-id="${bg.id}" data-type="bg">删除</button></div>`).join(''); }
+async function refreshSprites() { const list = document.getElementById('spriteList'); if (!list) return; const sprites = await getAllFromStore('sprites'); const grouped = {}; sprites.forEach(s => { const [char, exp] = s.id.split('/'); if (!grouped[char]) grouped[char] = []; grouped[char].push({ exp, data: s.data }); }); let html = ''; for (const [char, exps] of Object.entries(grouped)) { html += `<div style="margin-bottom:8px;"><strong>${char}</strong>`; exps.forEach(e => html += `<div class="sprite-item"><img src="${e.data}"><span style="flex:1;font-size:13px;">${e.exp}</span><button class="delete-btn" data-id="${char}/${e.exp}" data-type="sprite">删除</button></div>`); html += `</div>`; } list.innerHTML = html; }
+async function refreshAudios() { const list = document.getElementById('audioList'); if (!list) return; const audios = await getAllFromStore('audios'); list.innerHTML = audios.map(a => `<div style="display:flex;align-items:center;gap:8px;margin:4px 0;background:#fff1;padding:4px;border-radius:6px;"><span style="flex:1;font-size:13px;">🎵 ${a.id}</span><button class="delete-btn" data-id="${a.id}" data-type="audio">删除</button></div>`).join(''); }
+
+// 保存资源事件
+document.getElementById('saveBgBtn')?.addEventListener('click', async () => {
+  const file = document.getElementById('bgUpload').files[0]; const id = document.getElementById('bgId').value.trim();
+  if (!file || !id) return alert('请选择图片并输入ID');
+  const reader = new FileReader();
+  reader.onload = async e => { await saveToStore('backgrounds', { id, data: e.target.result }); await refreshBGs(); };
+  reader.readAsDataURL(file);
+});
+document.getElementById('saveSpriteBtn')?.addEventListener('click', async () => {
+  const file = document.getElementById('spriteUpload').files[0]; const char = document.getElementById('charName').value.trim(); const exp = document.getElementById('expression').value.trim();
+  if (!file || !char || !exp) return alert('请完整填写');
+  const reader = new FileReader();
+  reader.onload = async e => { await saveToStore('sprites', { id: `${char}/${exp}`, data: e.target.result }); await refreshSprites(); };
+  reader.readAsDataURL(file);
+});
+document.getElementById('saveAudioBtn')?.addEventListener('click', async () => {
+  const file = document.getElementById('audioUpload').files[0]; const id = document.getElementById('audioId').value.trim();
+  if (!file || !id) return alert('请选择音频并输入ID');
+  const reader = new FileReader();
+  reader.onload = async e => { await saveToStore('audios', { id, data: e.target.result }); await refreshAudios(); };
+  reader.readAsDataURL(file);
+});
+
+// 删除委托
+document.getElementById('bgList')?.addEventListener('click', async e => { if (e.target.classList.contains('delete-btn')) { await deleteFromStore('backgrounds', e.target.dataset.id); refreshBGs(); } });
+document.getElementById('spriteList')?.addEventListener('click', async e => { if (e.target.classList.contains('delete-btn')) { await deleteFromStore('sprites', e.target.dataset.id); refreshSprites(); } });
+document.getElementById('audioList')?.addEventListener('click', async e => { if (e.target.classList.contains('delete-btn')) { await deleteFromStore('audios', e.target.dataset.id); refreshAudios(); } });
+
+// 模板切换
+const container = document.getElementById('game-container');
+const themeClasses = ['theme-dark','theme-comic','theme-japanese','theme-minimal','theme-cyberpunk','theme-watercolor','theme-pixel','theme-glass'];
+function applyTheme(themeName) {
+  container.classList.remove(...themeClasses);
+  if (themeName) container.classList.add(themeName);
+  localStorage.setItem('galgame_theme', themeName);
+}
+document.getElementById('themePanel')?.querySelectorAll('.theme-option').forEach(btn => {
+  btn.addEventListener('click', () => { applyTheme(btn.dataset.theme); closePanel('themePanel'); });
+});
+const savedTheme = localStorage.getItem('galgame_theme');
+if (savedTheme) applyTheme(savedTheme);
+
+// 滤镜与光影
+const scene = document.getElementById('scene');
+const filterSelect = document.getElementById('filterSelect');
+const sliders = {
+  vignette: document.getElementById('vignetteSlider'),
+  glow: document.getElementById('glowSlider'),
+  sun: document.getElementById('sunSlider'),
+  cinematic: document.getElementById('cinematicSlider')
+};
+function applyFilter(f) { if (scene) scene.style.filter = f === 'none' ? '' : f; }
+function applyLighting(v,g,s,c) {
+  document.documentElement.style.setProperty('--vignette-opacity', v);
+  document.documentElement.style.setProperty('--glow-opacity', g);
+  document.documentElement.style.setProperty('--sun-opacity', s);
+  document.documentElement.style.setProperty('--cinematic-opacity', c);
+}
+function syncFXUI(filter, lighting) {
+  if (filterSelect) filterSelect.value = filter || 'none';
+  applyFilter(filter);
+  if (lighting) {
+    if (sliders.vignette) sliders.vignette.value = lighting.vignette || 0;
+    if (sliders.glow) sliders.glow.value = lighting.glow || 0;
+    if (sliders.sun) sliders.sun.value = lighting.sun || 0;
+    if (sliders.cinematic) sliders.cinematic.value = lighting.cinematic || 0;
+    applyLighting(lighting.vignette, lighting.glow, lighting.sun, lighting.cinematic);
+  }
+}
+filterSelect?.addEventListener('change', () => { applyFilter(filterSelect.value); if (window._onFXChange) window._onFXChange(); });
+Object.values(sliders).forEach(s => s?.addEventListener('input', () => {
+  applyLighting(sliders.vignette?.value || 0, sliders.glow?.value || 0, sliders.sun?.value || 0, sliders.cinematic?.value || 0);
+  if (window._onFXChange) window._onFXChange();
+}));
+
+// 音频系统
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+const bgmGain = audioCtx.createGain(); bgmGain.connect(audioCtx.destination);
+const sfxGain = audioCtx.createGain(); sfxGain.connect(audioCtx.destination);
+async function playAudio(audioId, loop = false, type = 'sfx') {
+  const audioData = await getFromStore('audios', audioId);
+  if (!audioData) return;
+  try {
+    const arrayBuffer = await fetch(audioData.data).then(r => r.arrayBuffer());
+    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+    const source = audioCtx.createBufferSource();
+    source.buffer = audioBuffer;
+    source.loop = loop;
+    source.connect(type === 'bgm' ? bgmGain : sfxGain);
+    source.start(0);
+    return source;
+  } catch(e) { console.error('音频播放失败:', e); }
+}
+document.addEventListener('click', () => { if (audioCtx.state === 'suspended') audioCtx.resume(); }, {once: true});
+
+// 系统设置
+const settings = {
+  textSpeed: 30, autoDelay: 2, bgmVolume: 0.7, sfxVolume: 0.8, skipAll: false,
+  spriteTransition: true, bgTransition: true, showCursor: true, ambientLight: true, dialogAnimation: true,
+  load() {
+    const saved = localStorage.getItem('galgame_settings');
+    if (saved) Object.assign(this, JSON.parse(saved));
+    document.getElementById('speedSetting')?.value = this.textSpeed;
+    document.getElementById('autoDelaySetting')?.value = this.autoDelay;
+    document.getElementById('bgmVol')?.value = this.bgmVolume;
+    document.getElementById('sfxVol')?.value = this.sfxVolume;
+    document.getElementById('skipModeCheck')?.checked = this.skipAll;
+    document.getElementById('spriteTransCheck')?.checked = this.spriteTransition;
+    document.getElementById('bgTransCheck')?.checked = this.bgTransition;
+    document.getElementById('cursorCheck')?.checked = this.showCursor;
+    document.getElementById('ambientCheck')?.checked = this.ambientLight;
+    document.getElementById('dialogAnimCheck')?.checked = this.dialogAnimation;
+    if (bgmGain) bgmGain.gain.value = this.bgmVolume;
+    if (sfxGain) sfxGain.gain.value = this.sfxVolume;
+    this.applyVisual();
+  },
+  save() {
+    this.textSpeed = +document.getElementById('speedSetting')?.value || 30;
+    this.autoDelay = +document.getElementById('autoDelaySetting')?.value || 2;
+    this.bgmVolume = +document.getElementById('bgmVol')?.value || 0.7;
+    this.sfxVolume = +document.getElementById('sfxVol')?.value || 0.8;
+    this.skipAll = document.getElementById('skipModeCheck')?.checked || false;
+    this.spriteTransition = document.getElementById('spriteTransCheck')?.checked;
+    this.bgTransition = document.getElementById('bgTransCheck')?.checked;
+    this.showCursor = document.getElementById('cursorCheck')?.checked;
+    this.ambientLight = document.getElementById('ambientCheck')?.checked;
+    this.dialogAnimation = document.getElementById('dialogAnimCheck')?.checked;
+    if (bgmGain) bgmGain.gain.value = this.bgmVolume;
+    if (sfxGain) sfxGain.gain.value = this.sfxVolume;
+    localStorage.setItem('galgame_settings', JSON.stringify(this));
+    this.applyVisual();
+  },
+  applyVisual() {
+    const ambient = document.getElementById('ambientLight');
+    if (ambient) ambient.classList.toggle('active', this.ambientLight);
+    const dlg = document.getElementById('dialogPanel');
+    if (dlg) dlg.classList.toggle('animated', this.dialogAnimation);
+  }
+};
+settings.load();
+document.getElementById('settingsPanel')?.addEventListener('change', () => settings.save());
+document.getElementById('resetSettingsBtn')?.addEventListener('click', () => {
+  localStorage.removeItem('galgame_settings');
+  Object.assign(settings, { textSpeed:30, autoDelay:2, bgmVolume:0.7, sfxVolume:0.8, skipAll:false, spriteTransition:true, bgTransition:true, showCursor:true, ambientLight:true, dialogAnimation:true });
+  settings.load(); settings.save();
+});
+
+// 自动/跳过
+let autoMode = false, skipMode = false;
+const autoBtn = document.getElementById('navAuto'), skipBtn = document.getElementById('navSkip');
+function setAutoMode(val) { autoMode = val; if (autoBtn) autoBtn.classList.toggle('active', autoMode); if (!autoMode && uiManager) uiManager.clearAutoTimer(); }
+function setSkipMode(val) { skipMode = val; if (skipBtn) skipBtn.classList.toggle('active', skipMode); }
+autoBtn?.addEventListener('click', () => { setAutoMode(!autoMode); if (autoMode && skipMode) setSkipMode(false); });
+skipBtn?.addEventListener('click', () => { setSkipMode(!skipMode); if (skipMode && autoMode) setAutoMode(false); });
+
+// 回滚
+let historyStack = [];
+const readNodes = new Set();
+function rollbackDialogue() { if (uiManager.gameEnded || historyStack.length < 2) return; historyStack.pop(); const prev = historyStack[historyStack.length-1]; if (prev) { setAutoMode(false); setSkipMode(false); uiManager.stopTypewriter(); uiManager.clearAutoTimer(); interpreter.executeNode(prev, true); } }
+function jumpToNode(nodeId) { const idx = historyStack.indexOf(nodeId); if (idx >= 0) historyStack = historyStack.slice(0, idx+1); else historyStack = [nodeId]; setAutoMode(false); setSkipMode(false); uiManager.stopTypewriter(); uiManager.clearAutoTimer(); interpreter.executeNode(nodeId, true); }
+
+// 游戏引擎
+class GameState {
+  constructor() { this.variables = {}; this.currentNodeId = null; this.sceneState = { background: null, sprites: [] }; this.filter = 'none'; this.lighting = { vignette:0, glow:0, sun:0, cinematic:0 }; }
+  setVar(k,v) { this.variables[k] = v; }
+  getVar(k) { return this.variables[k] || 0; }
+  addVar(k,d) { this.setVar(k, this.getVar(k) + d); }
+  save(slot) {
+    let thumbnail = '';
+    try { const sceneEl = document.getElementById('scene'); const canvas = document.createElement('canvas'); canvas.width = sceneEl.offsetWidth; canvas.height = sceneEl.offsetHeight; const ctx = canvas.getContext('2d'); ctx.drawImage(sceneEl, 0, 0, canvas.width, canvas.height); thumbnail = canvas.toDataURL('image/jpeg', 0.5); } catch(e) {}
+    localStorage.setItem(`gal_save_${slot}`, JSON.stringify({ variables: this.variables, currentNodeId: this.currentNodeId, sceneState: this.sceneState, filter: this.filter, lighting: this.lighting, autoMode, skipMode, thumbnail, timestamp: Date.now() }));
+  }
+  load(slot) {
+    const raw = localStorage.getItem(`gal_save_${slot}`);
+    if (!raw) return false;
+    try {
+      const data = JSON.parse(raw);
+      this.variables = data.variables; this.currentNodeId = data.currentNodeId;
+      this.sceneState = data.sceneState || { background:null, sprites:[] };
+      this.filter = data.filter || 'none'; this.lighting = data.lighting || { vignette:0, glow:0, sun:0, cinematic:0 };
+      setAutoMode(data.autoMode || false); setSkipMode(data.skipMode || false);
+      return true;
+    } catch(e) { return false; }
+  }
+}
+
+class UIManager {
+  constructor() {
+    this.scene = document.getElementById('scene'); this.speaker = document.getElementById('speaker');
+    this.textEl = document.getElementById('text'); this.choicesEl = document.getElementById('choices');
+    this.dialogPanel = document.getElementById('dialogPanel'); this.gameEnded = false;
+    this.typewriterTimer = null; this.autoTimer = null; this.waitingForInput = false; this.cursorEl = null;
+  }
+  clearAutoTimer() { if (this.autoTimer) { clearTimeout(this.autoTimer); this.autoTimer = null; } }
+  stopTypewriter() { if (this.typewriterTimer) { clearTimeout(this.typewriterTimer); this.typewriterTimer = null; } }
+
+  async setBackground(bgId) {
+    if (!bgId) { this.scene.style.backgroundImage = ''; return; }
+    const bg = await getFromStore('backgrounds', bgId);
+    if (bg) {
+      if (settings.bgTransition) {
+        this.scene.style.transition = 'opacity 0.5s';
+        this.scene.style.opacity = '0';
+        setTimeout(() => { this.scene.style.backgroundImage = `url(${bg.data})`; this.scene.style.opacity = '1'; }, 500);
+      } else {
+        this.scene.style.backgroundImage = `url(${bg.data})`;
+      }
+    }
+  }
+
+  async showCharacter(charName, expression, position='center') {
+    const oldSprites = this.scene.querySelectorAll(`.sprite.${position}`);
+    if (settings.spriteTransition && oldSprites.length) {
+      oldSprites.forEach(el => { el.style.transition = 'opacity 0.4s'; el.style.opacity = '0'; el.addEventListener('transitionend', () => el.remove()); });
+    } else oldSprites.forEach(el => el.remove());
+
+    if (!charName || !expression) return;
+    const sprite = await getFromStore('sprites', `${charName}/${expression}`);
+    if (!sprite) return;
+    const img = document.createElement('img'); img.className = `sprite ${position}`; img.src = sprite.data; img.alt = charName;
+    if (settings.spriteTransition) { img.style.opacity = '0'; this.scene.appendChild(img); requestAnimationFrame(() => { img.style.transition = 'opacity 0.4s'; img.style.opacity = '1'; }); }
+    else this.scene.appendChild(img);
+  }
+
+  clearAllSprites() { this.scene.querySelectorAll('.sprite').forEach(el => el.remove()); }
+
+  showDialogue(speaker, text, callback) {
+    if (this.gameEnded || this.waitingForInput) return;
+    this.waitingForInput = true; this.choicesEl.innerHTML = ''; this.stopTypewriter(); this.clearAutoTimer();
+    this.speaker.textContent = speaker || '';
+    if (this.cursorEl) this.cursorEl.remove();
+
+    if (skipMode) {
+      const skipAll = settings.skipAll;
+      const nodeId = gameState.currentNodeId;
+      if (skipAll || readNodes.has(nodeId)) {
+        this.textEl.textContent = text; readNodes.add(nodeId); this.waitingForInput = false; if (callback) callback(); return;
+      }
+    }
+
+    this.textEl.textContent = '';
+    if (settings.showCursor) { this.cursorEl = document.createElement('span'); this.cursorEl.className = 'text-cursor'; this.textEl.appendChild(this.cursorEl); }
+
+    let index = 0; const speed = settings.textSpeed;
+    const type = () => {
+      if (index < text.length) {
+        this.textEl.insertBefore(document.createTextNode(text.charAt(index)), this.cursorEl || null);
+        index++; this.typewriterTimer = setTimeout(type, speed);
+      } else {
+        if (this.cursorEl) this.cursorEl.remove();
+        this.typewriterTimer = null; readNodes.add(gameState.currentNodeId);
+        if (autoMode) {
+          this.autoTimer = setTimeout(() => { this.autoTimer = null; this.waitingForInput = false; if (callback) callback(); }, settings.autoDelay * 1000);
+        } else { this.waitingForInput = false; }
+      }
+    };
+    type();
+
+    const advance = () => {
+      if (this.typewriterTimer) { clearTimeout(this.typewriterTimer); this.textEl.textContent = text; if (this.cursorEl) this.cursorEl.remove(); this.typewriterTimer = null; readNodes.add(gameState.currentNodeId); this.clearAutoTimer(); this.waitingForInput = false; return; }
+      this.clearAutoTimer(); this.dialogPanel.removeEventListener('click', advance); this.scene.removeEventListener('click', sceneAdvance); this.waitingForInput = false;
+      if (callback) callback();
+    };
+    const sceneAdvance = () => advance();
+    this.dialogPanel.addEventListener('click', advance); this.scene.addEventListener('click', sceneAdvance);
+  }
+
+  advance() { if (this.waitingForInput && !this.typewriterTimer) this.dialogPanel.click(); else if (this.typewriterTimer) this.dialogPanel.click(); }
+
+  showChoices(choices, onSelect) {
+    setAutoMode(false); setSkipMode(false);
+    if (this.gameEnded) return;
+    this.choicesEl.innerHTML = '';
+    choices.forEach(c => {
+      const btn = document.createElement('button'); btn.className = 'choice-btn'; btn.textContent = c.text;
+      btn.addEventListener('click', (e) => { e.stopPropagation(); this.choicesEl.innerHTML = ''; onSelect(c); });
+      this.choicesEl.appendChild(btn);
+    });
+  }
+
+  showEnding(title, message, emoji='🎉') {
+    this.gameEnded = true; setAutoMode(false); setSkipMode(false);
+    const newPanel = this.dialogPanel.cloneNode(true); this.dialogPanel.parentNode.replaceChild(newPanel, this.dialogPanel); this.dialogPanel = newPanel;
+    newPanel.innerHTML = `<div style="text-align:center;padding:20px;"><div style="font-size:48px;">${emoji}</div><h2 style="color:var(--accent)">${title}</h2><p style="white-space:pre-line">${message}</p><button class="choice-btn" onclick="location.reload()">重新开始</button></div>`;
+  }
+
+  addLog(speaker, text) {
+    const logContent = document.getElementById('logContent'); if (!logContent) return;
+    const entry = document.createElement('div'); entry.className = 'log-entry'; entry.dataset.nodeId = gameState.currentNodeId;
+    entry.innerHTML = `<span class="speaker">${speaker||'旁白'}</span>: ${text}`;
+    entry.addEventListener('click', () => { if (gameState.currentNodeId !== entry.dataset.nodeId) { jumpToNode(entry.dataset.nodeId); closePanel('logPanel'); } });
+    logContent.appendChild(entry); logContent.scrollTop = logContent.scrollHeight;
+  }
+}
+
+class Interpreter {
+  constructor(state, ui) { this.state = state; this.ui = ui; this.script = {}; this._bgmSource = null; }
+  loadScript(s) { this.script = s; }
+  async start(nodeId='start') { this.state.currentNodeId = nodeId; await this.executeNode(nodeId); }
+  async executeNode(nodeId, isRollback = false) {
+    if (this.ui.gameEnded) return;
+    const node = this.script[nodeId]; if (!node) return;
+    this.state.currentNodeId = nodeId;
+
+    if (!isRollback) {
+      node.effects?.forEach(e => { if (e.type==='add') this.state.addVar(e.target,e.value); else if (e.type==='set') this.state.setVar(e.target,e.value); });
+      if (node.type === 'dialogue' || node.type === 'branch') historyStack.push(nodeId);
+      if (node.bgm) { if (this._bgmSource) this._bgmSource.stop(); this._bgmSource = await playAudio(node.bgm, true, 'bgm'); }
+      if (node.sfx) playAudio(node.sfx, false, 'sfx');
+      if (node.effect) applySceneEffect(node.effect);
+      if (node.type === 'dialogue') this.ui.addLog(node.speaker, node.text);
+      this.state.save(0);
+    }
+
+    if (node.background !== undefined) { await this.ui.setBackground(node.background); this.state.sceneState.background = node.background; }
+    if (node.sprites) { this.ui.clearAllSprites(); for (const s of node.sprites) await this.ui.showCharacter(s.char, s.exp, s.pos||'center'); this.state.sceneState.sprites = node.sprites; }
+    if (node.filter !== undefined) { this.state.filter = node.filter; syncFXUI(node.filter, this.state.lighting); }
+    if (node.lighting) { this.state.lighting = { ...this.state.lighting, ...node.lighting }; syncFXUI(this.state.filter, this.state.lighting); }
+
+    switch (node.type) {
+      case 'dialogue': this.ui.showDialogue(node.speaker, node.text, () => this.goNext(node.nextNodeId)); break;
+      case 'branch': const choices = node.choices.filter(c => !c.condition || this.evaluateCondition(c.condition)); if (choices.length===0) { this.goNext(node.nextNodeId); return; } this.ui.showChoices(choices, chosen => { chosen.effects?.forEach(e => { if (e.type==='add') this.state.addVar(e.target,e.value); else if (e.type==='set') this.state.setVar(e.target,e.value); }); this.goNext(chosen.nextNodeId); }); break;
+      case 'ending': this.ui.showEnding(node.title, node.text, node.emoji); break;
+    }
+    updateScriptHighlight();
+  }
+  goNext(nextId) { if (nextId) this.executeNode(nextId); }
+  evaluateCondition(condStr) {
+    const match = condStr.match(/^(\w+)\s*(>=|<=|>|<|==)\s*(\d+)$/);
+    if (!match) return true;
+    const [, varName, op, val] = match;
+    const cur = this.state.getVar(varName) || 0; const target = parseInt(val);
+    switch (op) { case '>=': return cur >= target; case '<=': return cur <= target; case '>': return cur > target; case '<': return cur < target; case '==': return cur == target; }
+  }
+}
+
+function applySceneEffect(effect) {
+  if (!effect) return;
+  const sceneEl = document.getElementById('scene');
+  if (effect === 'shake') { sceneEl.classList.add('shake'); setTimeout(() => sceneEl.classList.remove('shake'), 400); }
+  else if (effect === 'flash') { sceneEl.classList.add('flash'); setTimeout(() => sceneEl.classList.remove('flash'), 200); }
+}
+
+// 剧本对照表
+function buildScriptTable() {
+  const content = document.getElementById('scriptContent'); if (!content || !interpreter) return;
+  const nodes = interpreter.script; let html = '';
+  for (const [id, node] of Object.entries(nodes)) {
+    const type = node.type || 'unknown'; const speaker = node.speaker || (type === 'branch' ? '分支' : '');
+    const text = node.text ? node.text.substring(0,20) : (type === 'branch' ? `${node.choices?.length||0}选项` : '');
+    html += `<div class="script-entry" data-node-id="${id}"><span style="background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px;font-size:11px;">${type}</span><span style="flex:1;">${id}: ${speaker} - ${text}${text.length>=20?'...':''}</span></div>`;
+  }
+  content.innerHTML = html;
+  content.querySelectorAll('.script-entry').forEach(entry => entry.addEventListener('click', () => { const nid = entry.dataset.nodeId; if (nid && gameState.currentNodeId !== nid) { jumpToNode(nid); closePanel('scriptPanel'); } }));
+  updateScriptHighlight();
+}
+function updateScriptHighlight() { document.querySelectorAll('.script-entry').forEach(e => e.classList.toggle('active', e.dataset.nodeId === gameState?.currentNodeId)); }
+
+// 存档面板
+function showSavePanel() {
+  openPanel('savePanel');
+  const slotList = document.getElementById('slotList'); if (!slotList) return; slotList.innerHTML = '';
+  for (let i=0;i<3;i++) {
+    const saveData = localStorage.getItem(`gal_save_${i}`); let thumb='', info='空';
+    if (saveData) { const data = JSON.parse(saveData); thumb = data.thumbnail ? `<img src="${data.thumbnail}">` : ''; info = data.timestamp ? new Date(data.timestamp).toLocaleString() : '未知'; }
+    const div = document.createElement('div'); div.className='save-slot';
+    div.innerHTML = `${thumb}<div class="slot-info"><div>槽位${i}</div><div style="font-size:12px;opacity:0.7;">${info}</div></div>`;
+    const saveBtn = document.createElement('button'); saveBtn.textContent='保存'; saveBtn.addEventListener('click', () => { gameState.save(i); closePanel('savePanel'); });
+    const loadBtn = document.createElement('button'); loadBtn.textContent='读取'; loadBtn.addEventListener('click', async () => { if (gameState.load(i)) { await restoreScene(); closePanel('savePanel'); } else alert('无存档'); });
+    div.appendChild(saveBtn); div.appendChild(loadBtn); slotList.appendChild(div);
+  }
+}
+async function restoreScene() {
+  uiManager.gameEnded = false; const s = gameState;
+  uiManager.clearAllSprites(); await uiManager.setBackground(s.sceneState.background);
+  if (s.sceneState.sprites) for (const sp of s.sceneState.sprites) await uiManager.showCharacter(sp.char, sp.exp, sp.pos);
+  syncFXUI(s.filter, s.lighting);
+  document.getElementById('speaker').textContent=''; document.getElementById('text').textContent=''; document.getElementById('choices').innerHTML='';
+  await interpreter.executeNode(s.currentNodeId);
+}
+
+// 导出系统
+let appIconData = null;
+document.getElementById('iconUpload')?.addEventListener('change', async () => {
+  const file = document.getElementById('iconUpload').files[0]; if (!file) return;
+  const reader = new FileReader(); reader.onload = e => { appIconData = e.target.result; const preview = document.getElementById('iconPreview'); if (preview) preview.innerHTML = `<img src="${appIconData}" style="width:48px;height:48px;border-radius:8px;">`; }; reader.readAsDataURL(file);
+});
+document.querySelectorAll('.export-btn').forEach(btn => btn.addEventListener('click', async () => {
+  const platform = btn.dataset.platform; const status = document.getElementById('exportStatus'); if (status) status.textContent = '打包中...';
+  try {
+    const zip = await generateExportZip(platform); const content = await zip.generateAsync({type:'blob'});
+    if (window.Android) { const reader = new FileReader(); reader.onload = () => window.Android.saveFile(reader.result, `lumilo-${platform}.zip`); reader.readAsDataURL(content); }
+    else { saveAs(content, `lumilo-${platform}.zip`); }
+    if (status) status.textContent = '导出成功！';
+  } catch(e) { if (status) status.textContent = '失败: '+e.message; }
+}));
+
+async function generateExportZip(platform) {
+  const zip = new JSZip();
+  const playerHTML = await generateOfflinePlayerHTML();
+  zip.file("index.html", playerHTML);
+  if (platform === 'windows') {
+    const pkg = { name:"lumilo-game", main:"index.html", window:{ title:"织光", fullscreen:false, resizable:true } };
+    if (appIconData) pkg.window.icon = "icon.png";
+    zip.file("package.json", JSON.stringify(pkg, null, 2));
+    zip.file("build.bat", `@echo off\nif not exist nw\\nw.exe (curl -L -o nw.zip https://dl.nwjs.io/v0.77.0/nwjs-sdk-v0.77.0-win-x64.zip && tar -xf nw.zip && ren nwjs-sdk-v0.77.0-win-x64 nw)\ncopy /b nw\\nw.exe + index.html game.exe\necho Done`);
+  } else if (platform === 'android') {
+    let cfg = `<?xml version='1.0' encoding='utf-8'?>\n<widget id="com.lumilo.game" version="1.0.0" xmlns="http://www.w3.org/ns/widgets">\n    <name>织光</name>\n    <content src="index.html" />\n    <allow-intent href="*" />\n`;
+    if (appIconData) cfg += `    <icon src="icon.png" />\n`;
+    cfg += `</widget>`;
+    zip.file("config.xml", cfg);
+    zip.file("build.bat", `@echo off\necho Install Node.js and Cordova first.\ncall cordova create temp com.lumilo.game Lumilo\ncopy index.html temp\\www\\\ncd temp\ncall cordova platform add android\ncall cordova build android\necho APK at temp\\platforms\\android\\app\\build\\outputs\\apk\\debug`);
+  }
+  if (appIconData && platform !== 'web') zip.file("icon.png", dataURItoBlob(appIconData));
+  return zip;
+}
+
+async function generateOfflinePlayerHTML() {
+  const backgrounds = {}; for (let bg of await getAllFromStore('backgrounds')) backgrounds[bg.id] = bg.data;
+  const sprites = {}; for (let s of await getAllFromStore('sprites')) sprites[s.id] = s.data;
+  const audios = {}; for (let a of await getAllFromStore('audios')) audios[a.id] = a.data;
+  const scriptData = JSON.stringify(SCRIPT_DATA, null, 2);
+  return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>织光</title><style>*{margin:0;padding:0;box-sizing:border-box}body{background:#0f0f23;display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;color:#eee;overflow:hidden}#game-container{width:100%;max-width:800px;height:100vh;background:#1a1a2e;display:flex;flex-direction:column}.scene{flex:1;background:#2a2a3c;background-size:cover;background-position:center;cursor:pointer}.sprite{position:absolute;bottom:0;max-height:80%}.sprite.left{left:20px}.sprite.center{left:50%;transform:translateX(-50%)}.sprite.right{right:20px}.dialog-panel{background:rgba(20,20,40,0.9);border-top:2px solid rgba(255,255,255,0.1);padding:20px;min-height:140px}.speaker{font-weight:bold;color:#e94560;margin-bottom:5px}.text{font-size:16px;line-height:1.6;margin-bottom:10px}.choices{display:flex;gap:8px}.choice-btn{background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#eee;padding:8px 16px;border-radius:20px;cursor:pointer}</style></head><body><div id="game-container"><div class="scene" id="scene"></div><div class="dialog-panel"><div class="speaker" id="speaker"></div><div class="text" id="text"></div><div class="choices" id="choices"></div></div></div><script>
+    const EMBEDDED_BG = ${JSON.stringify(backgrounds)}; const EMBEDDED_SPRITES = ${JSON.stringify(sprites)}; const EMBEDDED_AUD
