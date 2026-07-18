@@ -5,113 +5,42 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
-      - uses: android-actions/setup-android@v3
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
         with:
           packages: 'platforms;android-34 build-tools;34.0.0 platform-tools'
-          accept-license: true
-
-      - name: Create simple Android project
+          accept-android-sdk-licenses: true
+      - name: Install Capacitor CLI
+        run: npm install -g @capacitor/cli @capacitor/core @capacitor/android
+      - name: Prepare web assets
         run: |
-          mkdir -p SimpleApp/app/src/main/java/com/lumilo/engine
-          mkdir -p SimpleApp/app/src/main/assets
-          cp index.html SimpleApp/app/src/main/assets/
-
-          # AndroidManifest.xml
-          cat > SimpleApp/app/src/main/AndroidManifest.xml << 'EOF'
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-              package="com.lumilo.engine">
-              <uses-permission android:name="android.permission.INTERNET" />
-              <application android:allowBackup="true" android:label="织光">
-                  <activity android:name=".MainActivity" android:exported="true">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN" />
-                          <category android:name="android.intent.category.LAUNCHER" />
-                      </intent-filter>
-                  </activity>
-              </application>
-          </manifest>
-          EOF
-
-          # MainActivity.java (WebView)
-          cat > SimpleApp/app/src/main/java/com/lumilo/engine/MainActivity.java << 'EOF'
-          package com.lumilo.engine;
-          import android.app.Activity;
-          import android.os.Bundle;
-          import android.webkit.WebView;
-          import android.webkit.WebSettings;
-          import android.webkit.WebViewClient;
-          public class MainActivity extends Activity {
-              @Override
-              protected void onCreate(Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
-                  WebView webView = new WebView(this);
-                  setContentView(webView);
-                  WebSettings settings = webView.getSettings();
-                  settings.setJavaScriptEnabled(true);
-                  settings.setDomStorageEnabled(true);
-                  settings.setAllowFileAccess(true);
-                  webView.setWebViewClient(new WebViewClient());
-                  webView.loadUrl("file:///android_asset/index.html");
-              }
-          }
-          EOF
-
-          # build.gradle (project level)
-          cat > SimpleApp/build.gradle << 'EOF'
-          buildscript {
-              repositories { google(); mavenCentral() }
-              dependencies { classpath 'com.android.tools.build:gradle:8.1.0' }
-          }
-          allprojects { repositories { google(); mavenCentral() } }
-          EOF
-
-          # app/build.gradle
-          cat > SimpleApp/app/build.gradle << 'EOF'
-          plugins { id 'com.android.application' }
-          android {
-              namespace 'com.lumilo.engine'
-              compileSdk 34
-              defaultConfig {
-                  applicationId "com.lumilo.engine"
-                  minSdk 21
-                  targetSdk 34
-                  versionCode 1
-                  versionName "1.0"
-              }
-              buildTypes { release { minifyEnabled false } }
-          }
-          dependencies { implementation 'androidx.appcompat:appcompat:1.6.1' }
-          EOF
-
-          # settings.gradle
-          cat > SimpleApp/settings.gradle << 'EOF'
-          pluginManagement {
-              repositories { google(); mavenCentral(); gradlePluginPortal() }
-          }
-          dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-              repositories { google(); mavenCentral() }
-          }
-          rootProject.name = "SimpleApp"
-          include ':app'
-          EOF
-
-          # gradle.properties
-          echo "android.useAndroidX=true" > SimpleApp/gradle.properties
-          echo "org.gradle.jvmargs=-Xmx2048m" >> SimpleApp/gradle.properties
-
+          mkdir -p www
+          cp index.html www/
+      - name: Initialize Capacitor project
+        run: |
+          npm init -y
+          npm install @capacitor/core @capacitor/cli @capacitor/android
+          echo '{"appId":"com.lumilo.engine","appName":"织光","webDir":"www"}' > capacitor.config.json
+          npx cap add android
+      - name: Create mandatory files and sync
+        run: |
+          mkdir -p android/app/src/main/assets
+          echo '{}' > android/app/src/main/assets/capacitor.plugins.json
+          cp capacitor.config.json android/app/src/main/assets/capacitor.config.json
+          npx cap sync android
       - name: Build APK
         run: |
-          cd SimpleApp
-          gradle wrapper --gradle-version 8.2
+          cd android
           chmod +x gradlew
           ./gradlew assembleDebug
-
       - uses: actions/upload-artifact@v4
         with:
           name: lumilo-apk
-          path: SimpleApp/app/build/outputs/apk/debug/app-debug.apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
