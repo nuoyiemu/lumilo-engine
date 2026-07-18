@@ -12,17 +12,18 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
+
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
           packages: 'platforms;android-34 build-tools;34.0.0 platform-tools'
           accept-android-sdk-licenses: true
 
-      # 👇 关键步骤：手动接受所有许可证，防止卡在交互提示
-      - name: Accept all Android SDK licenses manually
+      # 👇 关键修复：强制接受所有许可证
+      - name: Force accept all Android SDK licenses
         run: |
-          echo "Accepting Android SDK licenses..."
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
+          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
 
       - name: Install Capacitor CLI
         run: npm install -g @capacitor/cli @capacitor/core @capacitor/android
