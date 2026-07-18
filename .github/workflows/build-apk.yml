@@ -28,11 +28,15 @@ jobs:
         run: |
           npm init -y
           npm install @capacitor/core @capacitor/cli @capacitor/android
-          npx cap init "织光" com.lumilo.engine --web-dir .
+          # 创建配置文件，明确 webDir 为当前目录
+          echo '{"appId":"com.lumilo.engine","appName":"织光","webDir":"."}' > capacitor.config.json
           npx cap add android
-          npx cap sync
+          # 创建 android assets 目录并放入空插件清单（避免 sync 报错）
+          mkdir -p android/app/src/main/assets
+          echo '{}' > android/app/src/main/assets/capacitor.plugins.json
+          npx cap sync android
 
-      - name: Build APK (with stacktrace)
+      - name: Build APK
         run: |
           cd android
           chmod +x gradlew
