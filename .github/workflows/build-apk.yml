@@ -1,0 +1,24 @@
+name: Build APK
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      - name: Install Cordova
+        run: npm install -g cordova
+      - name: Create Cordova project
+        run: |
+          cordova create app com.lumilo.engine "织光"
+          cp index.html app/www/
+      - name: Add Android platform
+        run: cd app && cordova platform add android
+      - name: Build APK
+        run: cd app && cordova build android --release
+      - uses: actions/upload-artifact@v3
+        with:
+          name: lumilo-apk
+          path: app/platforms/android/app/build/outputs/apk/debug/app-debug.apk
