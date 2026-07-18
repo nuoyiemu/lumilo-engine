@@ -21,20 +21,29 @@ jobs:
           packages: 'platforms;android-34 build-tools;34.0.0 platform-tools'
           accept-license: true
 
+      - name: Prepare web assets folder
+        run: |
+          mkdir -p www
+          cp index.html www/
+
       - name: Install Capacitor CLI
         run: npm install -g @capacitor/cli @capacitor/core @capacitor/android
 
-      - name: Initialize Capacitor project
+      - name: Initialize Capacitor with www folder
         run: |
           npm init -y
           npm install @capacitor/core @capacitor/cli @capacitor/android
-          # 创建配置文件，明确 webDir 为当前目录
-          echo '{"appId":"com.lumilo.engine","appName":"织光","webDir":"."}' > capacitor.config.json
+          echo '{"appId":"com.lumilo.engine","appName":"织光","webDir":"www"}' > capacitor.config.json
           npx cap add android
-          # 创建 android assets 目录并放入空插件清单（避免 sync 报错）
+
+      - name: Create mandatory files
+        run: |
           mkdir -p android/app/src/main/assets
           echo '{}' > android/app/src/main/assets/capacitor.plugins.json
-          npx cap sync android
+          cp capacitor.config.json android/app/src/main/assets/capacitor.config.json
+
+      - name: Sync Capacitor
+        run: npx cap sync android
 
       - name: Build APK
         run: |
