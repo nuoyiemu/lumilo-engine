@@ -5,41 +5,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v3
         with:
           packages: 'platforms;android-34 build-tools;34.0.0 platform-tools'
           accept-license: true
 
-      - name: Generate Android project
+      - name: Create simple Android project
         run: |
-          # 创建项目目录结构
-          mkdir -p MyApp/app/src/main/java/com/lumilo/engine
-          mkdir -p MyApp/app/src/main/assets
-          mkdir -p MyApp/app/src/main/res/layout
-          mkdir -p MyApp/app/src/main/res/values
+          mkdir -p SimpleApp/app/src/main/java/com/lumilo/engine
+          mkdir -p SimpleApp/app/src/main/assets
+          cp index.html SimpleApp/app/src/main/assets/
 
-          # 复制 index.html 到 assets
-          cp index.html MyApp/app/src/main/assets/
-
-          # 创建 AndroidManifest.xml
-          cat > MyApp/app/src/main/AndroidManifest.xml << 'EOF'
+          # AndroidManifest.xml
+          cat > SimpleApp/app/src/main/AndroidManifest.xml << 'EOF'
           <manifest xmlns:android="http://schemas.android.com/apk/res/android"
               package="com.lumilo.engine">
               <uses-permission android:name="android.permission.INTERNET" />
-              <application
-                  android:allowBackup="true"
-                  android:label="织光"
-                  android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
-                  <activity
-                      android:name=".MainActivity"
-                      android:exported="true">
+              <application android:allowBackup="true" android:label="织光">
+                  <activity android:name=".MainActivity" android:exported="true">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
                           <category android:name="android.intent.category.LAUNCHER" />
@@ -49,8 +36,8 @@ jobs:
           </manifest>
           EOF
 
-          # 创建 MainActivity.java (WebView)
-          cat > MyApp/app/src/main/java/com/lumilo/engine/MainActivity.java << 'EOF'
+          # MainActivity.java (WebView)
+          cat > SimpleApp/app/src/main/java/com/lumilo/engine/MainActivity.java << 'EOF'
           package com.lumilo.engine;
           import android.app.Activity;
           import android.os.Bundle;
@@ -73,37 +60,18 @@ jobs:
           }
           EOF
 
-          # 创建 styles.xml
-          cat > MyApp/app/src/main/res/values/styles.xml << 'EOF'
-          <resources>
-              <style name="AppTheme" parent="android:Theme.NoTitleBar.Fullscreen" />
-          </resources>
-          EOF
-
-          # 创建 build.gradle (Project)
-          cat > MyApp/build.gradle << 'EOF'
+          # build.gradle (project level)
+          cat > SimpleApp/build.gradle << 'EOF'
           buildscript {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-              dependencies {
-                  classpath 'com.android.tools.build:gradle:8.1.0'
-              }
+              repositories { google(); mavenCentral() }
+              dependencies { classpath 'com.android.tools.build:gradle:8.1.0' }
           }
-          allprojects {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
+          allprojects { repositories { google(); mavenCentral() } }
           EOF
 
-          # 创建 app/build.gradle
-          cat > MyApp/app/build.gradle << 'EOF'
-          plugins {
-              id 'com.android.application'
-          }
+          # app/build.gradle
+          cat > SimpleApp/app/build.gradle << 'EOF'
+          plugins { id 'com.android.application' }
           android {
               namespace 'com.lumilo.engine'
               compileSdk 34
@@ -114,51 +82,36 @@ jobs:
                   versionCode 1
                   versionName "1.0"
               }
-              buildTypes {
-                  release {
-                      minifyEnabled false
-                  }
-              }
+              buildTypes { release { minifyEnabled false } }
           }
-          dependencies {
-              implementation 'androidx.appcompat:appcompat:1.6.1'
-          }
+          dependencies { implementation 'androidx.appcompat:appcompat:1.6.1' }
           EOF
 
-          # 创建 settings.gradle
-          cat > MyApp/settings.gradle << 'EOF'
+          # settings.gradle
+          cat > SimpleApp/settings.gradle << 'EOF'
           pluginManagement {
-              repositories {
-                  google()
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
           }
           dependencyResolutionManagement {
               repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-              repositories {
-                  google()
-                  mavenCentral()
-              }
+              repositories { google(); mavenCentral() }
           }
-          rootProject.name = "MyApp"
+          rootProject.name = "SimpleApp"
           include ':app'
           EOF
 
-          # 创建 gradle.properties
-          echo "android.useAndroidX=true" > MyApp/gradle.properties
-          echo "org.gradle.jvmargs=-Xmx2048m" >> MyApp/gradle.properties
+          # gradle.properties
+          echo "android.useAndroidX=true" > SimpleApp/gradle.properties
+          echo "org.gradle.jvmargs=-Xmx2048m" >> SimpleApp/gradle.properties
 
       - name: Build APK
         run: |
-          cd MyApp
-          # 生成 gradlew
+          cd SimpleApp
           gradle wrapper --gradle-version 8.2
           chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace
+          ./gradlew assembleDebug
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: lumilo-apk
-          path: MyApp/app/build/outputs/apk/debug/app-debug.apk
+          path: SimpleApp/app/build/outputs/apk/debug/app-debug.apk
