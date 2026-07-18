@@ -17,29 +17,41 @@ jobs:
         with:
           packages: 'platforms;android-34 build-tools;34.0.0 platform-tools'
           accept-android-sdk-licenses: true
+
+      # 👇 关键步骤：手动接受所有许可证，防止卡在交互提示
+      - name: Accept all Android SDK licenses manually
+        run: |
+          echo "Accepting Android SDK licenses..."
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
       - name: Install Capacitor CLI
         run: npm install -g @capacitor/cli @capacitor/core @capacitor/android
+
       - name: Prepare web assets
         run: |
           mkdir -p www
           cp index.html www/
+
       - name: Initialize Capacitor project
         run: |
           npm init -y
           npm install @capacitor/core @capacitor/cli @capacitor/android
           echo '{"appId":"com.lumilo.engine","appName":"织光","webDir":"www"}' > capacitor.config.json
           npx cap add android
+
       - name: Create mandatory files and sync
         run: |
           mkdir -p android/app/src/main/assets
           echo '{}' > android/app/src/main/assets/capacitor.plugins.json
           cp capacitor.config.json android/app/src/main/assets/capacitor.config.json
           npx cap sync android
+
       - name: Build APK
         run: |
           cd android
           chmod +x gradlew
           ./gradlew assembleDebug
+
       - uses: actions/upload-artifact@v4
         with:
           name: lumilo-apk
