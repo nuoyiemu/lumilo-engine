@@ -19,7 +19,6 @@ jobs:
       - name: Prepare web assets
         run: |
           mkdir -p www
-          # 复制仓库中的 index.html 到 www
           cp index.html www/
 
       - name: Initialize Capacitor project
@@ -45,7 +44,6 @@ jobs:
       - name: Replace app icon
         run: |
           if [ -f icon.png ]; then
-            # 覆盖默认图标（多种分辨率）
             cp icon.png android/app/src/main/res/mipmap-hdpi/ic_launcher.png
             cp icon.png android/app/src/main/res/mipmap-mdpi/ic_launcher.png
             cp icon.png android/app/src/main/res/mipmap-xhdpi/ic_launcher.png
@@ -53,19 +51,41 @@ jobs:
             cp icon.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
             echo "Icon replaced."
           else
-            echo "No icon.png found in repository root, using default icon."
+            echo "No icon.png found, using default."
           fi
 
-      # ---------- 修复3：解决点击无反应（内嵌 CDN 资源） ----------
-      - name: Embed CDN scripts for offline use
+      # ---------- 修复3：内嵌 CDN 脚本，使导出功能离线可用 ----------
+      - name: Embed CDN scripts using Python
         run: |
-          # 下载 JSZip 和 FileSaver 的内容并内嵌到 index.html 中
-          JZIP=$(curl -sL https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js)
-          FSAVER=$(curl -sL https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js)
-          # 将 <script src="..."> 标签替换为内嵌脚本，移除 src 属性，把脚本内容直接放进去
-          sed -i "s|<script src=\"https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js\"></script>|<script>${JZIP}</script>|" www/index.html
-          sed -i "s|<script src=\"https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js\"></script>|<script>${FSAVER}</script>|" www/index.html
-          echo "CDN scripts embedded."
+          python3 - << 'PYEOF'
+          import re
+
+          # 读取 HTML 文件
+          with open("www/index.html", "r", encoding="utf-8") as f:
+              html = f.read()
+
+          # 内嵌 JSZip
+          jszip_url = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
+          jszip_code = __import__('urllib.request').request.urlopen(jszip_url).read().decode('utf-8')
+          html = html.replace(
+              f'<script src="{jszip_url}"></script>',
+              f'<script>{jszip_code}</script>'
+          )
+
+          # 内嵌 FileSaver
+          filesaver_url = "https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"
+          filesaver_code = __import__('urllib.request').request.urlopen(filesaver_url).read().decode('utf-8')
+          html = html.replace(
+              f'<script src="{filesaver_url}"></script>',
+              f'<script>{filesaver_code}</script>'
+          )
+
+          # 写回文件
+          with open("www/index.html", "w", encoding="utf-8") as f:
+              f.write(html)
+
+          print("CDN scripts embedded successfully.")
+          PYEOF
 
       - name: Sync Capacitor after modifications
         run: npx cap sync android
