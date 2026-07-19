@@ -11,7 +11,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
 
       - name: Install Capacitor CLI
         run: npm install -g @capacitor/cli @capacitor/core @capacitor/android
@@ -35,9 +35,8 @@ jobs:
           cp capacitor.config.json android/app/src/main/assets/capacitor.config.json
           npx cap sync android
 
-      - name: Ensure required Android SDK components are installed
+      - name: Ensure Android SDK components are installed
         run: |
-          # 检查是否已有 platforms;android-34 和 build-tools;34.0.0
           INSTALLED=$($ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list_installed)
           if echo "$INSTALLED" | grep -q "platforms;android-34" && echo "$INSTALLED" | grep -q "build-tools;34.0.0"; then
             echo "Required SDK components already installed."
