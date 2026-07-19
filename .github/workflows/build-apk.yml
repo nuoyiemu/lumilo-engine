@@ -35,35 +35,29 @@ jobs:
           cp capacitor.config.json android/app/src/main/assets/capacitor.config.json
           npx cap sync android
 
-      # ========== 1. 横屏设置 ==========
-      - name: Set landscape orientation (debug)
+      # ---------- 修复1：强制横屏（直接修改 AndroidManifest.xml）----------
+      - name: Set landscape orientation
         run: |
-          echo "=== Before modification ==="
-          cat android/app/src/main/AndroidManifest.xml
-          # 在 <activity 标签中插入 android:screenOrientation="landscape"
-          sed -i 's/<activity /<activity android:screenOrientation="landscape" /' android/app/src/main/AndroidManifest.xml
+          sed -i 's|<activity|<activity android:screenOrientation="landscape"|' android/app/src/main/AndroidManifest.xml
           echo "=== After modification ==="
           cat android/app/src/main/AndroidManifest.xml
 
-      # ========== 2. 图标替换 ==========
-      - name: Replace icon (debug)
+      # ---------- 修复2：只替换 PNG 图标文件，跳过 XML ----------
+      - name: Replace icon (PNG files only)
         run: |
           if [ -f icon.png ]; then
-            echo "icon.png found, replacing icons..."
-            # 列出所有图标可能的位置
-            find android/app/src/main/res -name "ic_launcher*"
-            # 强制覆盖所有 ic_launcher 文件
-            for f in $(find android/app/src/main/res -name "ic_launcher*"); do
+            echo "Replacing PNG icon files..."
+            for f in $(find android/app/src/main/res -name "ic_launcher*.png"); do
               cp icon.png "$f"
               echo "Replaced: $f"
             done
             echo "Icon replacement done."
           else
-            echo "No icon.png in root, skipping."
+            echo "No icon.png found, using default."
           fi
 
-      # ========== 3. 内嵌 CDN 脚本（使用 Python，确保成功） ==========
-      - name: Embed CDN scripts (debug)
+      # ---------- 修复3：内嵌 CDN 脚本（离线可用）----------
+      - name: Embed CDN scripts
         run: |
           python3 - << 'PYEOF'
           import urllib.request
@@ -74,22 +68,16 @@ jobs:
           jszip_url = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
           filesaver_url = "https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"
 
-          try:
-              jszip_code = urllib.request.urlopen(jszip_url).read().decode('utf-8')
-              filesaver_code = urllib.request.urlopen(filesaver_url).read().decode('utf-8')
+          jszip_code = urllib.request.urlopen(jszip_url).read().decode('utf-8')
+          filesaver_code = urllib.request.urlopen(filesaver_url).read().decode('utf-8')
 
-              old_jszip = f'<script src="{jszip_url}"></script>'
-              old_filesaver = f'<script src="{filesaver_url}"></script>'
-              new_jszip = f'<script>{jszip_code}</script>'
-              new_filesaver = f'<script>{filesaver_code}</script>'
+          old_jszip = f'<script src="{jszip_url}"></script>'
+          old_filesaver = f'<script src="{filesaver_url}"></script>'
+          new_jszip = f'<script>{jszip_code}</script>'
+          new_filesaver = f'<script>{filesaver_code}</script>'
 
-              if old_jszip in html and old_filesaver in html:
-                  html = html.replace(old_jszip, new_jszip).replace(old_filesaver, new_filesaver)
-                  print("✓ Both CDN scripts embedded.")
-              else:
-                  print("? CDN script tags not found, may already be removed or different format.")
-          except Exception as e:
-              print(f"! Error embedding scripts: {e}")
+          html = html.replace(old_jszip, new_jszip).replace(old_filesaver, new_filesaver)
+          print("✓ Both CDN scripts embedded.")
 
           with open("www/index.html", "w", encoding="utf-8") as f:
               f.write(html)
@@ -98,7 +86,7 @@ jobs:
       - name: Sync Capacitor after modifications
         run: npx cap sync android
 
-      # ========== 构建 APK ==========
+      # ---------- 构建 APK ----------
       - name: Ensure Android SDK components
         run: |
           INSTALLED=$($ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list_installed)
