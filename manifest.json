@@ -1,0 +1,16 @@
+{
+  "name": "织光 · Lumilo 引擎",
+  "short_name": "织光",
+  "description": "视觉小说引擎，创作你的故事",
+  "start_url": "/lumilo-engine/",
+  "display": "standalone",
+  "background_color": "#1a1a2e",
+  "theme_color": "#e94560",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
