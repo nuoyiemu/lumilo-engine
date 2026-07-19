@@ -19,6 +19,7 @@ jobs:
       - name: Prepare web assets
         run: |
           mkdir -p www
+          # 复制仓库中的 index.html 到 www
           cp index.html www/
 
       - name: Initialize Capacitor project
@@ -35,7 +36,42 @@ jobs:
           cp capacitor.config.json android/app/src/main/assets/capacitor.config.json
           npx cap sync android
 
-      - name: Ensure Android SDK components are installed
+      # ---------- 修复1：强制横屏 ----------
+      - name: Set screen orientation to landscape
+        run: |
+          sed -i 's/<activity /<activity android:screenOrientation="landscape" /' android/app/src/main/AndroidManifest.xml
+
+      # ---------- 修复2：替换图标 ----------
+      - name: Replace app icon
+        run: |
+          if [ -f icon.png ]; then
+            # 覆盖默认图标（多种分辨率）
+            cp icon.png android/app/src/main/res/mipmap-hdpi/ic_launcher.png
+            cp icon.png android/app/src/main/res/mipmap-mdpi/ic_launcher.png
+            cp icon.png android/app/src/main/res/mipmap-xhdpi/ic_launcher.png
+            cp icon.png android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png
+            cp icon.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+            echo "Icon replaced."
+          else
+            echo "No icon.png found in repository root, using default icon."
+          fi
+
+      # ---------- 修复3：解决点击无反应（内嵌 CDN 资源） ----------
+      - name: Embed CDN scripts for offline use
+        run: |
+          # 下载 JSZip 和 FileSaver 的内容并内嵌到 index.html 中
+          JZIP=$(curl -sL https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js)
+          FSAVER=$(curl -sL https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js)
+          # 将 <script src="..."> 标签替换为内嵌脚本，移除 src 属性，把脚本内容直接放进去
+          sed -i "s|<script src=\"https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js\"></script>|<script>${JZIP}</script>|" www/index.html
+          sed -i "s|<script src=\"https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js\"></script>|<script>${FSAVER}</script>|" www/index.html
+          echo "CDN scripts embedded."
+
+      - name: Sync Capacitor after modifications
+        run: npx cap sync android
+
+      # ---------- 构建 APK ----------
+      - name: Ensure Android SDK components
         run: |
           INSTALLED=$($ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list_installed)
           if echo "$INSTALLED" | grep -q "platforms;android-34" && echo "$INSTALLED" | grep -q "build-tools;34.0.0"; then
