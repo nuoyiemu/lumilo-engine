@@ -5,6 +5,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Check index.html exists
+        run: |
+          if [ ! -f index.html ]; then
+            echo "ERROR: index.html not found."
+            exit 1
+          fi
+          echo "index.html found."
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -16,69 +25,24 @@ jobs:
       - name: Install Capacitor CLI
         run: npm install -g @capacitor/cli @capacitor/core @capacitor/android
 
-      - name: Prepare web assets and Capacitor config
+      - name: Prepare web assets
         run: |
           mkdir -p www
           cp index.html www/
+          sed -i 's|<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>|<!-- JSZip removed -->|' www/index.html
+          sed -i 's|<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>|<!-- FileSaver removed -->|' www/index.html
+          sed -i 's|exportGame|alert("导出请用网页版");//|' www/index.html
           echo '{"appId":"com.lumilo.engine","appName":"Lumilo","webDir":"www"}' > capacitor.config.json
 
-      - name: Initialize Capacitor project and add Android platform
+      - name: Initialize Capacitor and add Android
         run: |
           npm init -y
           npm install @capacitor/core @capacitor/cli @capacitor/android
           npx cap add android
 
-      - name: Embed CDN scripts and native bridge
-        run: |
-          python3 - << 'PYEOF'
-          import urllib.request
-
-          jszip_code = urllib.request.urlopen(
-              "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
-          ).read().decode('utf-8')
-          filesaver_code = urllib.request.urlopen(
-              "https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"
-          ).read().decode('utf-8')
-
-          with open("www/index.html", "r", encoding="utf-8") as f:
-              html = f.read()
-
-          html = html.replace(
-              '<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>',
-              f'<script>{jszip_code}</script>'
-          ).replace(
-              '<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>',
-              f'<script>{filesaver_code}</script>'
-          )
-
-          bridge = """
-          <script>
-          function saveFileLocally(content, filename) {
-              if (window.Android && window.Android.saveFile) {
-                  var reader = new FileReader();
-                  reader.onload = function() {
-                      window.Android.saveFile(reader.result, filename);
-                  };
-                  reader.readAsDataURL(content);
-              } else {
-                  saveAs(content, filename);
-              }
-          }
-          window.originalSaveAs = saveAs;
-          saveAs = saveFileLocally;
-          </script>
-          """
-          html = html.replace("</head>", bridge + "</head>")
-
-          with open("www/index.html", "w", encoding="utf-8") as f:
-              f.write(html)
-          print("CDN embedded and native bridge injected.")
-          PYEOF
-
-      - name: Sync Capacitor (generates all native files and copies web assets)
+      - name: Sync Capacitor
         run: npx cap sync android
 
-      # ---------- 强制横屏（sync 之后修改，避免被覆盖）----------
       - name: Force landscape orientation
         run: |
           python3 - << 'PYEOF'
@@ -87,7 +51,6 @@ jobs:
           root = tree.getroot()
           ns = "http://schemas.android.com/apk/res/android"
           ET.register_namespace("android", ns)
-
           for activity in root.iter("activity"):
               if activity.find(".//action") is not None:
                   activity.set(f"{{{ns}}}screenOrientation", "landscape")
@@ -98,8 +61,7 @@ jobs:
           print("AndroidManifest.xml updated.")
           PYEOF
 
-      # ---------- 图标替换 ----------
-      - name: Replace app icon (PNG only)
+      - name: Replace icon (PNG only)
         run: |
           if [ -f icon.png ]; then
             for f in $(find android/app/src/main/res -name "ic_launcher*.png"); do
@@ -108,11 +70,10 @@ jobs:
             done
             echo "Icon replaced."
           else
-            echo "No icon.png found, using default."
+            echo "No icon.png found."
           fi
 
-      # ---------- 构建 ----------
-      - name: Ensure Android SDK components
+      - name: Ensure SDK components
         run: |
           if $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list_installed | grep -q "platforms;android-34"; then
             echo "SDK ready."
