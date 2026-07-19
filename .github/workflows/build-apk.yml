@@ -16,11 +16,6 @@ jobs:
       - name: Install Capacitor CLI
         run: npm install -g @capacitor/cli @capacitor/core @capacitor/android
 
-      - name: Prepare web assets
-        run: |
-          mkdir -p www
-          cp index.html www/
-
       - name: Initialize Capacitor project
         run: |
           npm init -y
@@ -28,68 +23,103 @@ jobs:
           echo '{"appId":"com.lumilo.engine","appName":"Lumilo","webDir":"www"}' > capacitor.config.json
           npx cap add android
 
-      - name: Create mandatory files and sync
+      - name: Prepare web assets
         run: |
-          mkdir -p android/app/src/main/assets
-          echo '{}' > android/app/src/main/assets/capacitor.plugins.json
-          cp capacitor.config.json android/app/src/main/assets/capacitor.config.json
-          npx cap sync android
+          mkdir -p www
+          cp index.html www/
 
-      # ---------- 内嵌 CDN 脚本 ----------
-      - name: Embed CDN scripts
+      - name: Embed CDN scripts for offline use and add native bridge
         run: |
           python3 - << 'PYEOF'
           import urllib.request
 
+          # 下载 JSZip 和 FileSaver 源码
+          jszip_code = urllib.request.urlopen(
+              "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
+          ).read().decode('utf-8')
+          filesaver_code = urllib.request.urlopen(
+              "https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"
+          ).read().decode('utf-8')
+
+          # 读取 HTML
           with open("www/index.html", "r", encoding="utf-8") as f:
               html = f.read()
 
-          jszip_url = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
-          filesaver_url = "https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"
+          # 替换外部引用为内联脚本
+          html = html.replace(
+              '<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>',
+              f'<script>{jszip_code}</script>'
+          ).replace(
+              '<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>',
+              f'<script>{filesaver_code}</script>'
+          )
 
-          jszip_code = urllib.request.urlopen(jszip_url).read().decode('utf-8')
-          filesaver_code = urllib.request.urlopen(filesaver_url).read().decode('utf-8')
-
-          old_jszip = f'<script src="{jszip_url}"></script>'
-          old_filesaver = f'<script src="{filesaver_url}"></script>'
-          new_jszip = f'<script>{jszip_code}</script>'
-          new_filesaver = f'<script>{filesaver_code}</script>'
-
-          html = html.replace(old_jszip, new_jszip).replace(old_filesaver, new_filesaver)
+          # 注入原生文件保存桥接（用于 Android 导出）
+          bridge = """
+          <script>
+          // 如果运行在 Android WebView 中，使用原生接口保存文件
+          function saveFileLocally(content, filename) {
+              if (window.Android && window.Android.saveFile) {
+                  var reader = new FileReader();
+                  reader.onload = function() {
+                      window.Android.saveFile(reader.result, filename);
+                  };
+                  reader.readAsDataURL(content);
+              } else {
+                  // 降级为浏览器下载
+                  saveAs(content, filename);
+              }
+          }
+          // 替换引擎中的 saveAs 调用
+          window.originalSaveAs = saveAs;
+          saveAs = saveFileLocally;
+          </script>
+          """
+          html = html.replace("</head>", bridge + "</head>")
 
           with open("www/index.html", "w", encoding="utf-8") as f:
               f.write(html)
-          print("CDN scripts embedded.")
+          print("CDN scripts embedded and native bridge injected.")
           PYEOF
 
-      - name: Sync Capacitor
-        run: npx cap sync android
+      - name: Sync Capacitor (copy web assets only)
+        run: npx cap copy android
 
-      # ---------- 修复1：横屏 ----------
+      # ---------- 强制横屏（在 copy 之后修改，不会被覆盖）----------
       - name: Force landscape orientation
         run: |
-          # 找到 MainActivity.java 文件
-          MAJAVA=$(find android -name "MainActivity.java" | head -1)
-          # 在 setContentView 之前插入横屏代码
-          sed -i '/setContentView/i\        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);' "$MAJAVA"
-          # 添加 import
-          sed -i '/^import android.os.Bundle;/a import android.content.pm.ActivityInfo;' "$MAJAVA"
-          echo "Landscape orientation set."
+          python3 - << 'PYEOF'
+          import xml.etree.ElementTree as ET
+          tree = ET.parse("android/app/src/main/AndroidManifest.xml")
+          root = tree.getroot()
+          ns = "http://schemas.android.com/apk/res/android"
+          ET.register_namespace("android", ns)
 
-      # ---------- 修复2：图标 ----------
-      - name: Replace icon (PNG only)
+          for activity in root.iter("activity"):
+              if activity.find(".//action") is not None:
+                  activity.set(f"{{{ns}}}screenOrientation", "landscape")
+                  print("Landscape set on activity:", activity.get(f"{{{ns}}}name"))
+                  break
+          tree.write("android/app/src/main/AndroidManifest.xml",
+                     xml_declaration=True, encoding="utf-8")
+          print("AndroidManifest.xml updated.")
+          PYEOF
+
+      # ---------- 图标替换（只替换 PNG 文件）----------
+      - name: Replace app icon (PNG only)
         run: |
           if [ -f icon.png ]; then
-            for f in $(find android -name "ic_launcher*.png"); do
+            for f in $(find android/app/src/main/res -name "ic_launcher*.png"); do
               cp icon.png "$f"
+              echo "Replaced $f"
             done
             echo "Icon replaced."
           else
-            echo "No icon.png found."
+            echo "No icon.png found, using default."
           fi
 
-      # ---------- 构建 ----------
-      - name: Ensure SDK components
+      # ---------- 确保 Android SDK 组件 ----------
+      - name: Ensure Android SDK components
         run: |
           if $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list_installed | grep -q "platforms;android-34"; then
             echo "SDK ready."
