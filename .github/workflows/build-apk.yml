@@ -35,10 +35,10 @@ jobs:
           cp capacitor.config.json android/app/src/main/assets/capacitor.config.json
           npx cap sync android
 
-      - name: Accept licenses and install Android SDK components
+      # 关键一步：使用 --accept_license 自动接受许可证并安装 SDK 组件
+      - name: Install Android SDK components
         run: |
-          # 使用系统预装的 sdkmanager 安装所需组件，并用 yes 自动接受许可证
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-34" "build-tools;34.0.0"
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-34" "build-tools;34.0.0" --accept_license
 
       - name: Build APK
         run: |
