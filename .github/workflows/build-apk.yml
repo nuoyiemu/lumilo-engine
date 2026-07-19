@@ -16,24 +16,23 @@ jobs:
       - name: Install Capacitor CLI
         run: npm install -g @capacitor/cli @capacitor/core @capacitor/android
 
-      - name: Initialize Capacitor project
-        run: |
-          npm init -y
-          npm install @capacitor/core @capacitor/cli @capacitor/android
-          echo '{"appId":"com.lumilo.engine","appName":"Lumilo","webDir":"www"}' > capacitor.config.json
-          npx cap add android
-
-      - name: Prepare web assets
+      - name: Prepare web assets and Capacitor config
         run: |
           mkdir -p www
           cp index.html www/
+          echo '{"appId":"com.lumilo.engine","appName":"Lumilo","webDir":"www"}' > capacitor.config.json
 
-      - name: Embed CDN scripts for offline use and add native bridge
+      - name: Initialize Capacitor project and add Android platform
+        run: |
+          npm init -y
+          npm install @capacitor/core @capacitor/cli @capacitor/android
+          npx cap add android
+
+      - name: Embed CDN scripts and native bridge
         run: |
           python3 - << 'PYEOF'
           import urllib.request
 
-          # 下载 JSZip 和 FileSaver 源码
           jszip_code = urllib.request.urlopen(
               "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
           ).read().decode('utf-8')
@@ -41,11 +40,9 @@ jobs:
               "https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"
           ).read().decode('utf-8')
 
-          # 读取 HTML
           with open("www/index.html", "r", encoding="utf-8") as f:
               html = f.read()
 
-          # 替换外部引用为内联脚本
           html = html.replace(
               '<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>',
               f'<script>{jszip_code}</script>'
@@ -54,10 +51,8 @@ jobs:
               f'<script>{filesaver_code}</script>'
           )
 
-          # 注入原生文件保存桥接（用于 Android 导出）
           bridge = """
           <script>
-          // 如果运行在 Android WebView 中，使用原生接口保存文件
           function saveFileLocally(content, filename) {
               if (window.Android && window.Android.saveFile) {
                   var reader = new FileReader();
@@ -66,11 +61,9 @@ jobs:
                   };
                   reader.readAsDataURL(content);
               } else {
-                  // 降级为浏览器下载
                   saveAs(content, filename);
               }
           }
-          // 替换引擎中的 saveAs 调用
           window.originalSaveAs = saveAs;
           saveAs = saveFileLocally;
           </script>
@@ -79,13 +72,13 @@ jobs:
 
           with open("www/index.html", "w", encoding="utf-8") as f:
               f.write(html)
-          print("CDN scripts embedded and native bridge injected.")
+          print("CDN embedded and native bridge injected.")
           PYEOF
 
-      - name: Sync Capacitor (copy web assets only)
-        run: npx cap copy android
+      - name: Sync Capacitor (generates all native files and copies web assets)
+        run: npx cap sync android
 
-      # ---------- 强制横屏（在 copy 之后修改，不会被覆盖）----------
+      # ---------- 强制横屏（sync 之后修改，避免被覆盖）----------
       - name: Force landscape orientation
         run: |
           python3 - << 'PYEOF'
@@ -105,7 +98,7 @@ jobs:
           print("AndroidManifest.xml updated.")
           PYEOF
 
-      # ---------- 图标替换（只替换 PNG 文件）----------
+      # ---------- 图标替换 ----------
       - name: Replace app icon (PNG only)
         run: |
           if [ -f icon.png ]; then
@@ -118,7 +111,7 @@ jobs:
             echo "No icon.png found, using default."
           fi
 
-      # ---------- 确保 Android SDK 组件 ----------
+      # ---------- 构建 ----------
       - name: Ensure Android SDK components
         run: |
           if $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list_installed | grep -q "platforms;android-34"; then
